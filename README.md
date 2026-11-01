@@ -1,5 +1,5 @@
 -- ==================================================
--- Silent Assassins ESP + Painel de Controle GUI
+-- Silent Assassins ESP + Painel GUI + Team Check
 -- Configurado para QuorumHub / UNC Standard
 -- ==================================================
 
@@ -13,6 +13,7 @@ local LocalPlayer = Players.LocalPlayer
 -- // Configurações Globais
 local Settings = {
     ESP_ENABLED = true,
+    TEAM_CHECK = true, -- Ativa/Desativa ignorar aliados
     SKELETON_ENABLED = true,
     BOXES_ENABLED = true,
     NAMES_ENABLED = true,
@@ -37,6 +38,23 @@ local bodyConnections = {
 }
 
 local ESP_Cache = {}
+
+-- // Checagem de Time (Team Check)
+local function isTeammate(player: Player): boolean
+    if not Settings.TEAM_CHECK then
+        return false
+    end
+
+    if player.Team ~= nil and LocalPlayer.Team ~= nil then
+        return player.Team == LocalPlayer.Team
+    end
+
+    if player.TeamColor ~= nil and LocalPlayer.TeamColor ~= nil then
+        return player.TeamColor == LocalPlayer.TeamColor
+    end
+
+    return false
+end
 
 -- // Funções de Renderização (Drawing API)
 local function createDrawing(drawType: string, props: {[string]: any})
@@ -116,7 +134,7 @@ local function setupESP(player: Player)
     end
 end
 
--- // Loop de Renderização
+-- // Loop Principal de Renderização
 RunService.RenderStepped:Connect(function()
     local Camera = workspace.CurrentCamera
     if not Camera then return end
@@ -125,8 +143,9 @@ RunService.RenderStepped:Connect(function()
         local char = player.Character
         local hrp = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
         local hum = char and char:FindFirstChild("Humanoid") :: Humanoid?
+        local isAlly = isTeammate(player)
 
-        if Settings.ESP_ENABLED and char and hrp and hum and hum.Health > 0 then
+        if Settings.ESP_ENABLED and not isAlly and char and hrp and hum and hum.Health > 0 then
             local hrpPos, onScreen = Camera:WorldToViewportPoint(hrp.Position)
 
             if onScreen then
@@ -142,7 +161,7 @@ RunService.RenderStepped:Connect(function()
                     data.Box.Visible = false
                 end
 
-                -- Name
+                -- Nome
                 if Settings.NAMES_ENABLED then
                     data.Name.Text = player.Name
                     data.Name.Position = Vector2.new(hrpPos.X, hrpPos.Y - height * 0.5 - 15)
@@ -151,7 +170,7 @@ RunService.RenderStepped:Connect(function()
                     data.Name.Visible = false
                 end
 
-                -- Skeleton
+                -- Esqueleto
                 local rig = (hum.RigType == Enum.HumanoidRigType.R15) and "R15" or "R6"
                 for _, conn in ipairs(bodyConnections[rig]) do
                     local p1 = char:FindFirstChild(conn[1]) :: BasePart?
@@ -208,10 +227,10 @@ local function buildGui()
     ScreenGui.ResetOnSpawn = false
     ScreenGui.Parent = container
 
-    -- Janela Principal
+    -- Frame Principal (Altura expandida para acomodar o Team Check)
     local MainFrame = Instance.new("Frame")
     MainFrame.Name = "MainFrame"
-    MainFrame.Size = UDim2.new(0, 220, 0, 310)
+    MainFrame.Size = UDim2.new(0, 220, 0, 345)
     MainFrame.Position = UDim2.new(0.05, 0, 0.3, 0)
     MainFrame.BackgroundColor3 = Color3.fromRGB(25, 27, 32)
     MainFrame.BorderSizePixel = 0
@@ -243,7 +262,7 @@ local function buildGui()
     TitleCorner.CornerRadius = UDim.new(0, 8)
     TitleCorner.Parent = TitleBar
 
-    -- Sistema de Arrastar (Draggable)
+    -- Sistema de Arrastar
     local dragging, dragInput, dragStart, startPos
     TitleBar.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 then
@@ -280,7 +299,7 @@ local function buildGui()
     -- Função Auxiliar para Criar Botões Toggle
     local function createToggleButton(name: string, posY: number, defaultState: boolean, callback: (boolean) -> ())
         local btn = Instance.new("TextButton")
-        btn.Size = UDim2.new(0.9, 0, 0, 28)
+        btn.Size = UDim2.new(0.9, 0, 0, 26)
         btn.Position = UDim2.new(0.05, 0, 0, posY)
         btn.Font = Enum.Font.GothamMedium
         btn.TextSize = 12
@@ -308,27 +327,31 @@ local function buildGui()
         return btn
     end
 
-    -- Criação dos botões de controle
-    createToggleButton("Master ESP", 40, Settings.ESP_ENABLED, function(val)
+    -- Criação dos Botões
+    createToggleButton("Master ESP", 38, Settings.ESP_ENABLED, function(val)
         Settings.ESP_ENABLED = val
     end)
 
-    createToggleButton("Skeletons", 75, Settings.SKELETON_ENABLED, function(val)
+    createToggleButton("Team Check", 68, Settings.TEAM_CHECK, function(val)
+        Settings.TEAM_CHECK = val
+    end)
+
+    createToggleButton("Skeletons", 98, Settings.SKELETON_ENABLED, function(val)
         Settings.SKELETON_ENABLED = val
     end)
 
-    createToggleButton("Boxes", 110, Settings.BOXES_ENABLED, function(val)
+    createToggleButton("Boxes", 128, Settings.BOXES_ENABLED, function(val)
         Settings.BOXES_ENABLED = val
     end)
 
-    createToggleButton("Names", 145, Settings.NAMES_ENABLED, function(val)
+    createToggleButton("Names", 158, Settings.NAMES_ENABLED, function(val)
         Settings.NAMES_ENABLED = val
     end)
 
     -- Seção de Paleta de Cores
     local ColorLabel = Instance.new("TextLabel")
-    ColorLabel.Size = UDim2.new(0.9, 0, 0, 20)
-    ColorLabel.Position = UDim2.new(0.05, 0, 0, 185)
+    ColorLabel.Size = UDim2.new(0.9, 0, 0, 18)
+    ColorLabel.Position = UDim2.new(0.05, 0, 0, 192)
     ColorLabel.BackgroundTransparency = 1
     ColorLabel.Font = Enum.Font.GothamBold
     ColorLabel.TextSize = 11
@@ -347,13 +370,13 @@ local function buildGui()
     }
 
     local colorsContainer = Instance.new("Frame")
-    colorsContainer.Size = UDim2.new(0.9, 0, 0, 60)
-    colorsContainer.Position = UDim2.new(0.05, 0, 0, 210)
+    colorsContainer.Size = UDim2.new(0.9, 0, 0, 58)
+    colorsContainer.Position = UDim2.new(0.05, 0, 0, 214)
     colorsContainer.BackgroundTransparency = 1
     colorsContainer.Parent = MainFrame
 
     local grid = Instance.new("UIGridLayout")
-    grid.CellSize = UDim2.new(0, 30, 0, 26)
+    grid.CellSize = UDim2.new(0, 30, 0, 25)
     grid.CellPadding = UDim2.new(0, 3, 0, 4)
     grid.Parent = colorsContainer
 
@@ -373,15 +396,15 @@ local function buildGui()
         end)
     end
 
-    -- Dica de Tecla
+    -- Atalho de Teclado
     local KeyLabel = Instance.new("TextLabel")
     KeyLabel.Size = UDim2.new(0.9, 0, 0, 18)
-    KeyLabel.Position = UDim2.new(0.05, 0, 0, 280)
+    KeyLabel.Position = UDim2.new(0.05, 0, 0, 320)
     KeyLabel.BackgroundTransparency = 1
     KeyLabel.Font = Enum.Font.Gotham
     KeyLabel.TextSize = 10
     KeyLabel.TextColor3 = Color3.fromRGB(120, 125, 135)
-    KeyLabel.Text = "[H] Alternar Menu / ESP"
+    KeyLabel.Text = "[H] Alternar Menu"
     KeyLabel.Parent = MainFrame
 
     return ScreenGui
